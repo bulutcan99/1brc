@@ -1,6 +1,6 @@
 #[derive(Debug)]
 pub struct Temperature {
-    pub count: u16,
+    pub count: u64,
     pub sum: f64,
     pub min: f64,
     pub max: f64,
