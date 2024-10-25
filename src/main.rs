@@ -3,34 +3,37 @@ use std::{
     collections::HashMap,
     fs::File,
     io::{BufRead, BufReader},
+    sync::Arc,
 };
 
+use futures::lock::Mutex;
 use simple_logger::SimpleLogger;
 
 pub mod core;
 
-fn main() -> Result<(), anyhow::Error> {
-    SimpleLogger::new().init().unwrap();
-    let file = File::open("measurements.txt")?;
+const FILENAME: &str = "measurements.txt";
+const TOTAL_LINES: usize = 1_000_000_000;
+const CHUNK_SIZE: usize = 1000;
+
+async fn run(
+    map: Arc<Mutex<HashMap<String, Temperature>>>,
+    count: &mut u32,
+) -> Result<&u32, anyhow::Error> {
+    let file = File::open(FILENAME)?;
     let readers = BufReader::new(file);
-    let mut map: HashMap<String, Temperature> = HashMap::new();
-    let mut count = 0;
+    let mut chunk_lines = Vec::with_capacity(CHUNK_SIZE);
+    let mut lines = readers.lines();
+    for line in lines {}
+}
+
+#[tokio::main]
+async fn main() -> Result<(), anyhow::Error> {
+    SimpleLogger::new().init().unwrap();
+    let map: Arc<Mutex<HashMap<String, Temperature>>> = Arc::new(Mutex::new(HashMap::new()));
+    let mut count: u32 = 0;
     let start_time = std::time::Instant::now();
     log::info!("Reading file");
-
-    for line in readers.lines() {
-        count += 1;
-        let line = line?;
-        let parts: Vec<&str> = line.split(';').collect();
-        if parts.len() < 2 {
-            continue;
-        }
-        let key = parts[0].to_owned();
-        let value = parts[1].parse::<f64>()?;
-        map.entry(key)
-            .and_modify(|prev| prev.update(value))
-            .or_insert(Temperature::new(value));
-    }
+    run(map, &mut count).await?;
 
     log::info!("Processed {} lines", count);
     log::info!("Time elapsed: {:?}", start_time.elapsed());
