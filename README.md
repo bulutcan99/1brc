@@ -1,0 +1,1 @@
+It is a project aimed at testing the capabilities of Rust in handling large-scale data processing challenges. This project involves efficiently processing one billion rows of data to evaluate Rust's performance, scalability and efficiency.
