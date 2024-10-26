@@ -15,10 +15,9 @@ const FILENAME: &str = "measurements.txt";
 const TOTAL_LINES: usize = 1_000_000_000;
 const CHUNK_SIZE: usize = 1000;
 
-async fn run(
-    map: Arc<Mutex<HashMap<String, Temperature>>>,
-    count: &mut u32,
-) -> Result<&u32, anyhow::Error> {
+async fn process_chunk(chunk: Vec<String>, map: Arc<Mutex<HashMap<String, Temperature>>>) {}
+
+async fn run(map: Arc<Mutex<HashMap<String, Temperature>>>) -> Result<(), anyhow::Error> {
     let file = File::open(FILENAME)?;
     let readers = BufReader::new(file);
     let mut chunk_lines = Vec::with_capacity(CHUNK_SIZE);
