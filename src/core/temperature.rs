@@ -33,4 +33,15 @@ impl Temperature {
         self.min = self.min.min(temp);
         self.max = self.max.max(temp);
     }
+
+    pub fn average(&self) -> f64 {
+        self.sum / self.count as f64
+    }
+
+    pub fn merge(&mut self, other: &Temperature) {
+        self.count += other.count;
+        self.sum += other.sum;
+        self.min = self.min.min(other.min);
+        self.max = self.max.max(other.max);
+    }
 }
