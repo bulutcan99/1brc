@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{error::Error, fmt};
 
 #[derive(Debug)]
 pub enum ThreadPoolError {
@@ -17,4 +17,4 @@ impl fmt::Display for ThreadPoolError {
     }
 }
 
-impl std::error::Error for ThreadPoolError {}
+impl Error for ThreadPoolError {}
