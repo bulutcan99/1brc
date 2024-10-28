@@ -1,3 +1,4 @@
+pub mod error;
 pub mod processor;
 pub mod temperature;
 pub mod thread_pool;

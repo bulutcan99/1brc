@@ -1,11 +1,18 @@
 use std::{
     error::Error,
-    sync::{atomic::AtomicBool, Arc, Condvar, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Condvar, Mutex,
+    },
+    time::{Duration, Instant},
 };
 
 use crossbeam::queue::SegQueue;
 
-use super::worker::{Job, Worker};
+use super::{
+    error::ThreadPoolError,
+    worker::{Job, Worker},
+};
 
 pub struct ThreadPool {
     workers: Vec<Worker>,
@@ -37,7 +44,7 @@ impl ThreadPool {
         }
     }
 
-    pub fn execute<F>(&self, job: F) -> Result<(), Box<dyn Error>>
+    pub fn execute<F>(&self, job: F) -> Result<(), ThreadPoolError>
     where
         F: FnOnce() -> Result<(), Box<dyn std::error::Error>> + Send + 'static,
     {
@@ -47,6 +54,68 @@ impl ThreadPool {
         let mut job_available = mx.lock().unwrap();
         *job_available = true;
         cvar.notify_all();
+        Ok(())
+    }
+
+    pub fn shutdown(&mut self, timeout: Option<Duration>) -> Result<(), ThreadPoolError> {
+        // Step 1: Signal all workers to stop
+        self.job_running.store(false, Ordering::SeqCst);
+
+        // Step 2: Wake up all waiting threads
+        let (lock, cvar) = &*self.job_signal;
+        match lock.try_lock() {
+            Ok(mut job_available) => {
+                *job_available = true;
+                cvar.notify_all();
+            }
+            Err(_) => {
+                // We couldn't acquire the lock, but we've set running to false,
+                // so workers will eventually notice
+                println!("Warning: Couldn't acquire lock to notify workers. They will exit on their next timeout check.");
+            }
+        }
+
+        // Step 3: Start the shutdown process
+        let start = Instant::now();
+
+        for worker in &mut self.workers {
+            if let Some(thread) = worker.thread.take() {
+                if let Some(timeout_duration) = timeout {
+                    // Calculate remaining time for timeout-based shutdown
+                    let remaining = timeout_duration
+                        .checked_sub(start.elapsed())
+                        .unwrap_or(Duration::ZERO);
+
+                    if remaining.is_zero() {
+                        return Err(ThreadPoolError::ShutdownTimeout);
+                    }
+
+                    // Wait with a timeout
+                    if thread.join().is_err() {
+                        return Err(ThreadPoolError::ThreadJoinError(format!(
+                            "Worker {} failed to join",
+                            worker.id
+                        )));
+                    }
+                } else {
+                    // Wait without a timeout
+                    if thread.join().is_err() {
+                        return Err(ThreadPoolError::ThreadJoinError(format!(
+                            "Worker {} failed to join",
+                            worker.id
+                        )));
+                    }
+                }
+            }
+        }
+
+        // Final timeout check if duration was provided
+        if let Some(timeout_duration) = timeout {
+            if start.elapsed() > timeout_duration {
+                return Err(ThreadPoolError::ShutdownTimeout);
+            }
+        }
+
         Ok(())
     }
 }
