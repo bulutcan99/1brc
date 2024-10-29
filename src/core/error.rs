@@ -4,6 +4,7 @@ use std::{error::Error, fmt};
 pub enum ThreadPoolError {
     ShutdownTimeout,
     ThreadJoinError(String),
+    LockAcquireFailure,
 }
 
 impl fmt::Display for ThreadPoolError {
@@ -13,6 +14,7 @@ impl fmt::Display for ThreadPoolError {
             ThreadPoolError::ThreadJoinError(id) => {
                 write!(f, "Failed to join worker thread with ID: {}", id)
             }
+            ThreadPoolError::LockAcquireFailure => write!(f, "ThreadPool lock acquire failed!"),
         }
     }
 }

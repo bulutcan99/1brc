@@ -8,7 +8,7 @@ use async_std::{
 use std::{collections::HashMap, error::Error, sync::Arc};
 
 const FILENAME: &str = "measurements.txt";
-const CHUNK_SIZE: usize = 1000;
+const POOL_SIZE: u16 = 20;
 
 async fn process_chunk(chunk: Vec<String>, map: Arc<Mutex<HashMap<String, Temperature>>>) {}
 

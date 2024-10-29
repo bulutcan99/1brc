@@ -63,59 +63,49 @@ impl ThreadPool {
 
         // Step 2: Wake up all waiting threads
         let (lock, cvar) = &*self.job_signal;
-        match lock.try_lock() {
-            Ok(mut job_available) => {
-                *job_available = true;
-                cvar.notify_all();
-            }
-            Err(_) => {
-                // We couldn't acquire the lock, but we've set running to false,
-                // so workers will eventually notice
-                println!("Warning: Couldn't acquire lock to notify workers. They will exit on their next timeout check.");
-            }
+        if let Ok(mut job_available) = lock.try_lock() {
+            *job_available = true;
+            cvar.notify_all();
+        } else {
+            return Err(ThreadPoolError::LockAcquireFailure);
         }
 
-        // Step 3: Start the shutdown process
+        // Step 3: Track shutdown start time if a timeout is specified
         let start = Instant::now();
 
+        // Step 4: Wait for each worker thread to finish
         for worker in &mut self.workers {
             if let Some(thread) = worker.thread.take() {
-                if let Some(timeout_duration) = timeout {
-                    // Calculate remaining time for timeout-based shutdown
-                    let remaining = timeout_duration
-                        .checked_sub(start.elapsed())
-                        .unwrap_or(Duration::ZERO);
+                let should_timeout = timeout
+                    .map(|duration| start.elapsed() >= duration)
+                    .unwrap_or(false);
 
-                    if remaining.is_zero() {
-                        return Err(ThreadPoolError::ShutdownTimeout);
-                    }
+                if should_timeout {
+                    return Err(ThreadPoolError::ShutdownTimeout);
+                }
 
-                    // Wait with a timeout
-                    if thread.join().is_err() {
-                        return Err(ThreadPoolError::ThreadJoinError(format!(
-                            "Worker {} failed to join",
-                            worker.id
-                        )));
-                    }
-                } else {
-                    // Wait without a timeout
-                    if thread.join().is_err() {
-                        return Err(ThreadPoolError::ThreadJoinError(format!(
-                            "Worker {} failed to join",
-                            worker.id
-                        )));
-                    }
+                if thread.join().is_err() {
+                    return Err(ThreadPoolError::ThreadJoinError(format!(
+                        "Worker {} failed to join",
+                        worker.id
+                    )));
                 }
             }
         }
 
-        // Final timeout check if duration was provided
-        if let Some(timeout_duration) = timeout {
-            if start.elapsed() > timeout_duration {
-                return Err(ThreadPoolError::ShutdownTimeout);
-            }
+        // Step 5: Final timeout check, if a duration was provided
+        if timeout.map_or(false, |duration| start.elapsed() > duration) {
+            Err(ThreadPoolError::ShutdownTimeout)
+        } else {
+            Ok(())
         }
+    }
+}
 
-        Ok(())
+impl Drop for ThreadPool {
+    fn drop(&mut self) {
+        if !self.workers.is_empty() {
+            let _ = self.shutdown(Some(Duration::from_secs(2)));
+        }
     }
 }
