@@ -14,4 +14,5 @@ This project aims to test the capabilities of Rust in handling large-scale data 
 
 The time taken to process **1 billion rows** of data:
 
-- **First Processing Time**: **129.492 seconds**
+- **First Processing Time**: **129.492 seconds** -> Brute force
+- Second Processing Time: 185.944 seconds -> Parallel Processing
