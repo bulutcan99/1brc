@@ -1,61 +1,57 @@
-use super::{temperature::Temperature, thread_pool::ThreadPool};
+use crate::core::pool::ThreadPool;
+
+use super::temperature::Temperature;
 use std::{
     collections::HashMap,
     error::Error,
     fs::File,
     io::{BufRead, BufReader},
     sync::{Arc, Mutex},
-    time::Duration,
 };
 
-const FILENAME: &str = "measurements-mini.txt";
+const FILENAME: &str = "measurements.txt";
 const POOL_SIZE: usize = 10;
 
 pub fn run(map: Arc<Mutex<HashMap<String, Temperature>>>) -> Result<(), Box<dyn Error>> {
     let file = File::open(FILENAME)?;
     let reader = BufReader::new(file);
     let mut lines = reader.lines();
-
-    // No need to count if we are directly iterating over `lines`
-    let total_lines = lines.by_ref().count(); // `total_lines` is returned as `usize`
+    let total_lines = lines.by_ref().count();
     let chunk_size = total_lines / POOL_SIZE; // Number of lines per thread
 
-    // To start again from the beginning, we need a new `BufReader`
     let file = File::open(FILENAME)?;
     let reader = BufReader::new(file);
     let mut lines = reader.lines();
 
-    let mut pool = ThreadPool::new(POOL_SIZE);
+    let pool = Arc::new(ThreadPool::new(POOL_SIZE));
     let mut chunk_lines = Vec::with_capacity(chunk_size);
 
     while let Some(line) = lines.next() {
-        let line = line?; // Perform error handling
+        let line = line?;
         chunk_lines.push(line);
-
-        // If enough lines have been collected, send them to a thread
+        let pool = Arc::clone(&pool);
         if chunk_lines.len() >= chunk_size {
             let chunk = chunk_lines.clone();
             let map_clone = Arc::clone(&map);
             pool.execute(move || {
-                process_chunk(chunk, map_clone)?;
+                if let Err(e) = process_chunk(chunk, map_clone) {
+                    eprintln!("Error processing chunk: {:?}", e);
+                }
                 Ok(())
             })?;
-
-            chunk_lines.clear(); // Clear collected lines
+            chunk_lines.clear();
         }
     }
-
-    // Process remaining lines
     if !chunk_lines.is_empty() {
         let map_clone = Arc::clone(&map);
         pool.execute(move || {
-            process_chunk(chunk_lines, map_clone)?;
+            if let Err(e) = process_chunk(chunk_lines, map_clone) {
+                eprintln!("Error processing remaining lines: {:?}", e);
+            }
             Ok(())
         })?;
     }
-
-    pool.shutdown(None)?;
-
+    println!("Finished processing all lines");
     Ok(())
 }
 
