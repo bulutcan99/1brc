@@ -9,34 +9,43 @@ use std::{
 };
 
 const FILENAME: &str = "measurements-mini.txt";
-const DATA_SIZE: usize = 1_000_000_000;
-const POOL_SIZE: usize = 1000;
-const CHUNK_SIZE: usize = 1_000_000;
+const POOL_SIZE: usize = 10;
 
 pub fn run(map: Arc<Mutex<HashMap<String, Temperature>>>) -> Result<(), Box<dyn Error>> {
-    let pool = ThreadPool::new(POOL_SIZE);
     let file = File::open(FILENAME)?;
     let reader = BufReader::new(file);
-    let mut chunk_lines = Vec::with_capacity(CHUNK_SIZE);
     let mut lines = reader.lines();
 
+    // No need to count if we are directly iterating over `lines`
+    let total_lines = lines.by_ref().count(); // `total_lines` is returned as `usize`
+    let chunk_size = total_lines / POOL_SIZE; // Number of lines per thread
+
+    // To start again from the beginning, we need a new `BufReader`
+    let file = File::open(FILENAME)?;
+    let reader = BufReader::new(file);
+    let mut lines = reader.lines();
+
+    let mut pool = ThreadPool::new(POOL_SIZE);
+    let mut chunk_lines = Vec::with_capacity(chunk_size);
+
     while let Some(line) = lines.next() {
-        let line = line?;
+        let line = line?; // Perform error handling
         chunk_lines.push(line);
 
-        if chunk_lines.len() >= CHUNK_SIZE {
+        // If enough lines have been collected, send them to a thread
+        if chunk_lines.len() >= chunk_size {
             let chunk = chunk_lines.clone();
             let map_clone = Arc::clone(&map);
-
             pool.execute(move || {
                 process_chunk(chunk, map_clone)?;
                 Ok(())
             })?;
 
-            chunk_lines.clear();
+            chunk_lines.clear(); // Clear collected lines
         }
     }
 
+    // Process remaining lines
     if !chunk_lines.is_empty() {
         let map_clone = Arc::clone(&map);
         pool.execute(move || {
@@ -44,6 +53,8 @@ pub fn run(map: Arc<Mutex<HashMap<String, Temperature>>>) -> Result<(), Box<dyn 
             Ok(())
         })?;
     }
+
+    pool.shutdown(None)?;
 
     Ok(())
 }
