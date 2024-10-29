@@ -1,8 +1,17 @@
-It is a project aimed at testing the capabilities of Rust in handling large-scale data processing challenges. This project involves efficiently processing one billion rows of data to evaluate Rust's performance, scalability and efficiency.
+## Overview
 
-PC SPECIFICATIONS:
-Macbook Pro M2 Pro with 10-core CPU, 16GB RAM, 512GB SSD, and 16-core GPU.
+This project aims to test the capabilities of Rust in handling large-scale data processing challenges. The primary objective is to efficiently process **one billion rows** of data, evaluating Rust's performance, scalability, and efficiency in this context.
 
-TIME TAKE TO PROCESS 1 BILLION ROWS:
+## System Specifications
 
-1. 129.492 seconds
+- **Device**: MacBook Pro M2 Pro
+- **CPU**: 10-core CPU
+- **RAM**: 16 GB
+- **Storage**: 512 GB SSD
+- **GPU**: 16-core GPU
+
+## Performance Metrics
+
+The time taken to process **1 billion rows** of data:
+
+- **First Processing Time**: **129.492 seconds**

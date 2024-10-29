@@ -1,77 +1,70 @@
-use crate::core::pool::ThreadPool;
-
 use super::temperature::Temperature;
+use rayon::prelude::*;
 use std::{
     collections::HashMap,
     error::Error,
-    fs::File,
-    io::{BufRead, BufReader},
     sync::{Arc, Mutex},
 };
+use tokio::fs::File as TokioFile;
+use tokio::io::{AsyncBufReadExt, BufReader as TokioBufReader};
 
 const FILENAME: &str = "measurements.txt";
-const POOL_SIZE: usize = 10;
+const CHUNK_SIZE: usize = 1_000_000;
 
-pub fn run(map: Arc<Mutex<HashMap<String, Temperature>>>) -> Result<(), Box<dyn Error>> {
-    let file = File::open(FILENAME)?;
-    let reader = BufReader::new(file);
-    let mut lines = reader.lines();
-    let total_lines = lines.by_ref().count();
-    let chunk_size = total_lines / POOL_SIZE; // Number of lines per thread
-
-    let file = File::open(FILENAME)?;
-    let reader = BufReader::new(file);
+pub async fn run(map: Arc<Mutex<HashMap<String, Temperature>>>) -> Result<(), Box<dyn Error>> {
+    let file = TokioFile::open(FILENAME).await?;
+    let reader = TokioBufReader::new(file);
     let mut lines = reader.lines();
 
-    let pool = Arc::new(ThreadPool::new(POOL_SIZE));
-    let mut chunk_lines = Vec::with_capacity(chunk_size);
+    let mut chunk_lines = Vec::with_capacity(CHUNK_SIZE);
 
-    while let Some(line) = lines.next() {
-        let line = line?;
+    while let Some(line) = lines.next_line().await? {
         chunk_lines.push(line);
-        let pool = Arc::clone(&pool);
-        if chunk_lines.len() >= chunk_size {
+
+        if chunk_lines.len() >= CHUNK_SIZE {
             let chunk = chunk_lines.clone();
             let map_clone = Arc::clone(&map);
-            pool.execute(move || {
-                if let Err(e) = process_chunk(chunk, map_clone) {
+            tokio::task::spawn(async move {
+                if let Err(e) = process_chunk(chunk, map_clone).await {
                     eprintln!("Error processing chunk: {:?}", e);
                 }
-                Ok(())
-            })?;
+            });
             chunk_lines.clear();
         }
     }
+
     if !chunk_lines.is_empty() {
         let map_clone = Arc::clone(&map);
-        pool.execute(move || {
-            if let Err(e) = process_chunk(chunk_lines, map_clone) {
+        tokio::task::spawn(async move {
+            if let Err(e) = process_chunk(chunk_lines, map_clone).await {
                 eprintln!("Error processing remaining lines: {:?}", e);
             }
-            Ok(())
-        })?;
+        });
     }
+
     println!("Finished processing all lines");
     Ok(())
 }
 
-fn process_chunk(
+async fn process_chunk(
     chunk: Vec<String>,
     map: Arc<Mutex<HashMap<String, Temperature>>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    for data in chunk {
+    chunk.par_iter().for_each(|data| {
         let parts: Vec<&str> = data.split(';').collect();
         if parts.len() < 2 {
             eprintln!("Invalid data format: {}", data);
-
-            continue;
+            return; // Geçersiz veri durumunda döngüyü sonlandır
         }
 
         let key = parts[0].to_string();
-        let temp: f64 = parts[1].parse().map_err(|e| {
-            eprintln!("Failed to parse temperature for {}: {}", key, e);
-            e
-        })?;
+        let temp: f64 = parts[1]
+            .parse()
+            .map_err(|e| {
+                eprintln!("Failed to parse temperature for {}: {}", key, e);
+                e
+            })
+            .unwrap_or(0.0);
 
         let mut temp_map = map.lock().unwrap();
         if let Some(temperature) = temp_map.get_mut(&key) {
@@ -79,6 +72,7 @@ fn process_chunk(
         } else {
             temp_map.insert(key.clone(), Temperature::new(temp));
         }
-    }
+    });
+
     Ok(())
 }
