@@ -11,5 +11,4 @@ memmap = "0.7.0"
 rayon = "1.8.0"
 rustc-hash = "1.1.0"
 smol_str = "0.2.0"
-async-std = { version = "1.10", features = ["attributes"] }
 crossbeam = "0.8.4"

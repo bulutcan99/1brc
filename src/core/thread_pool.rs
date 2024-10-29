@@ -105,7 +105,9 @@ impl ThreadPool {
 impl Drop for ThreadPool {
     fn drop(&mut self) {
         if !self.workers.is_empty() {
-            let _ = self.shutdown(Some(Duration::from_secs(2)));
+            let _ = self
+                .shutdown(Some(Duration::from_secs(2)))
+                .map_err(|e| eprintln!("ThreadPool shutdown failed: {:?}", e));
         }
     }
 }
