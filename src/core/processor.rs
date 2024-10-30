@@ -1,3 +1,5 @@
+use crate::core::temperature::Value32;
+
 use super::temperature::Temperature;
 use std::collections::HashMap;
 use std::error::Error;
@@ -36,31 +38,20 @@ pub fn run() -> Result<(), Box<dyn Error>> {
             }
         };
 
-        let value = match unsafe { std::str::from_utf8_unchecked(value) }.parse::<f32>() {
-            Ok(v) => v,
-            Err(_) => {
-                eprintln!(
-                    "Invalid float value in line: {:?}",
-                    std::str::from_utf8(line).unwrap()
-                );
-                continue;
-            }
-        };
-
         h.entry(name)
             .or_insert_with(Temperature::default)
-            .add(value);
+            .add(Value32::parse(value));
     }
     let mut v: Vec<_> = h.into_iter().collect();
     v.sort_unstable_by_key(|p| p.0);
 
     for (name, r) in &v {
         println!(
-            "{}: {:.1}/{:.1}/{:.1}",
+            "{}: {}/{}/{}",
             std::str::from_utf8(name).unwrap(),
-            r.min,
-            r.average(),
-            r.max
+            Value32::format(&r.min),
+            Value32::format(&r.average()),
+            Value32::format(&r.max)
         );
     }
 
