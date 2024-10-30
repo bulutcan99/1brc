@@ -1,19 +1,15 @@
+#![feature(slice_split_once)]
+
 use core::temperature::Temperature;
-use std::{
-    collections::HashMap,
-    error::Error,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, error::Error};
 pub mod core;
 
-#[tokio::main]
-pub async fn main() -> Result<(), Box<dyn Error>> {
-    let map: Arc<Mutex<HashMap<String, Temperature>>> = Arc::new(Mutex::new(HashMap::new()));
+fn main() -> Result<(), Box<dyn Error>> {
     let start_time = std::time::Instant::now();
-    println!("Start time: {:?}", start_time.clone());
-    if let Err(e) = core::processor::run(map).await {
+    if let Err(e) = core::processor::run() {
         eprintln!("Error in run function: {:?}", e);
     }
     println!("Time elapsed: {:?}", start_time.elapsed());
+    print!("Finished!");
     Ok(())
 }

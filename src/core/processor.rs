@@ -1,78 +1,70 @@
 use super::temperature::Temperature;
-use rayon::prelude::*;
-use std::{
-    collections::HashMap,
-    error::Error,
-    sync::{Arc, Mutex},
-};
-use tokio::fs::File as TokioFile;
-use tokio::io::{AsyncBufReadExt, BufReader as TokioBufReader};
+use std::collections::HashMap;
+use std::error::Error;
+use std::fs::File;
+use std::io::Read;
 
 const FILENAME: &str = "measurements.txt";
-const CHUNK_SIZE: usize = 1_000_000;
 
-pub async fn run(map: Arc<Mutex<HashMap<String, Temperature>>>) -> Result<(), Box<dyn Error>> {
-    let file = TokioFile::open(FILENAME).await?;
-    let reader = TokioBufReader::new(file);
-    let mut lines = reader.lines();
+pub fn run() -> Result<(), Box<dyn Error>> {
+    let filename = FILENAME.to_string();
+    let mut data = Vec::new();
 
-    let mut chunk_lines = Vec::with_capacity(CHUNK_SIZE);
+    let mut file = File::open(&filename).map_err(|e| format!("Error opening file: {}", e))?;
+    file.read_to_end(&mut data)
+        .map_err(|e| format!("Error reading file: {}", e))?;
 
-    while let Some(line) = lines.next_line().await? {
-        chunk_lines.push(line);
-
-        if chunk_lines.len() >= CHUNK_SIZE {
-            let chunk = chunk_lines.clone();
-            let map_clone = Arc::clone(&map);
-            tokio::task::spawn(async move {
-                if let Err(e) = process_chunk(chunk, map_clone).await {
-                    eprintln!("Error processing chunk: {:?}", e);
-                }
-            });
-            chunk_lines.clear();
-        }
+    if data.last() != Some(&b'\n') {
+        return Err("File must end with a newline character".into());
     }
 
-    if !chunk_lines.is_empty() {
-        let map_clone = Arc::clone(&map);
-        tokio::task::spawn(async move {
-            if let Err(e) = process_chunk(chunk_lines, map_clone).await {
-                eprintln!("Error processing remaining lines: {:?}", e);
+    let mut h: HashMap<&[u8], Temperature> = HashMap::new();
+
+    for line in data.split(|&c| c == b'\n') {
+        if line.is_empty() {
+            continue;
+        }
+
+        let (name, value) = match line.split_once(|&c| c == b';') {
+            Some(pair) => pair,
+            None => {
+                eprintln!(
+                    "Invalid line format: {:?}",
+                    std::str::from_utf8(line).unwrap()
+                );
+                continue;
             }
-        });
+        };
+
+        let value = match unsafe { std::str::from_utf8_unchecked(value) }.parse::<f32>() {
+            Ok(v) => v,
+            Err(_) => {
+                eprintln!(
+                    "Invalid float value in line: {:?}",
+                    std::str::from_utf8(line).unwrap()
+                );
+                continue;
+            }
+        };
+
+        h.entry(name)
+            .or_insert_with(Temperature::default)
+            .add(value);
+    }
+    let mut v: Vec<_> = h.into_iter().collect();
+    v.sort_unstable_by_key(|p| p.0);
+
+    for (name, r) in &v {
+        println!(
+            "{}: {:.1}/{:.1}/{:.1}",
+            std::str::from_utf8(name).unwrap(),
+            r.min,
+            r.average(),
+            r.max
+        );
     }
 
-    println!("Finished processing all lines");
-    Ok(())
-}
-
-async fn process_chunk(
-    chunk: Vec<String>,
-    map: Arc<Mutex<HashMap<String, Temperature>>>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    chunk.par_iter().for_each(|data| {
-        let parts: Vec<&str> = data.split(';').collect();
-        if parts.len() < 2 {
-            eprintln!("Invalid data format: {}", data);
-            return; // Geçersiz veri durumunda döngüyü sonlandır
-        }
-
-        let key = parts[0].to_string();
-        let temp: f64 = parts[1]
-            .parse()
-            .map_err(|e| {
-                eprintln!("Failed to parse temperature for {}: {}", key, e);
-                e
-            })
-            .unwrap_or(0.0);
-
-        let mut temp_map = map.lock().unwrap();
-        if let Some(temperature) = temp_map.get_mut(&key) {
-            temperature.update(temp);
-        } else {
-            temp_map.insert(key.clone(), Temperature::new(temp));
-        }
-    });
+    eprintln!("Num records: {}", v.len());
 
     Ok(())
 }
