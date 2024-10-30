@@ -17,3 +17,4 @@ The time taken to process **1 billion rows** of data:
 - **First Processing Time**: **129.492 seconds** -> Brute force
 - Second Processing Time: 185.944 seconds -> Parallel Processing
 - Third Processing Time: 105.231 seconds -> Bytes instead of String
+- Fourth Processing Time: 99.492 seconds -> Custom float type
