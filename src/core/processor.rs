@@ -1,4 +1,5 @@
 use fxhash::FxHashMap;
+use memmap2::Mmap;
 use rayon::prelude::*;
 use std::error::Error;
 use std::fs::File;
@@ -11,12 +12,9 @@ const FILENAME: &str = "measurements.txt";
 
 pub fn run() -> Result<(), Box<dyn Error>> {
     let filename = FILENAME.to_string();
-    let stat = std::fs::metadata(&filename).unwrap();
-    let mut data = Vec::with_capacity(stat.len() as usize + 1);
-    let mut file = File::open(&filename).map_err(|e| format!("Error opening file: {}", e))?;
-    file.read_to_end(&mut data)
-        .map_err(|e| format!("Error reading file: {}", e))?;
-
+    let file = File::open(&filename).map_err(|e| format!("Error opening file: {}", e))?;
+    let mmap = unsafe { Mmap::map(&file).expect("Failed to map file") };
+    let data = &*mmap;
     if data.last() != Some(&b'\n') {
         return Err("File must end with a newline character".into());
     }

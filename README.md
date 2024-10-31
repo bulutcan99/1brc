@@ -22,3 +22,4 @@ The time taken to process **1 billion rows** of data:
 - Sixth Processing Time: 88.782 seconds -> Vec initialize with capacity
 - Seventh Processing Time: 27.383 seconds -> Rayon parallel processing
 - Eighth Processing Time: 15.373 seconds -> Remove println for all rows
+- Ninth Processing Time: 13.928 seconds -> MMap for file read
