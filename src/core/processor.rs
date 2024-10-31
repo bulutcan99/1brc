@@ -1,7 +1,6 @@
 use super::helper;
 use super::temperature::Temperature;
 use crate::core::temperature::Value32;
-use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
 use std::io::Read;
@@ -11,17 +10,16 @@ const FILENAME: &str = "measurements.txt";
 
 pub fn run() -> Result<(), Box<dyn Error>> {
     let filename = FILENAME.to_string();
-    let mut data = Vec::new();
-
+    let stat = std::fs::metadata(filename.clone()).unwrap();
+    let mut data = Vec::with_capacity(stat.len() as usize + 1);
     let mut file = File::open(&filename).map_err(|e| format!("Error opening file: {}", e))?;
     file.read_to_end(&mut data)
         .map_err(|e| format!("Error reading file: {}", e))?;
-
     if data.last() != Some(&b'\n') {
         return Err("File must end with a newline character".into());
     }
 
-    let mut h: HashMap<u64, (Temperature, &[u8])> = HashMap::new();
+    let mut h = fxhash::FxHashMap::default();
 
     for line in data.split(|&c| c == b'\n') {
         if line.is_empty() {
