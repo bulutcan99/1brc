@@ -21,7 +21,7 @@ pub fn run() -> Result<(), Box<dyn Error>> {
         return Err("File must end with a newline character".into());
     }
 
-    let mut h = data
+    let h = data
         .par_split(|&c| c == b'\n')
         .filter(|line| !line.is_empty())
         .map(|line| {
@@ -47,16 +47,6 @@ pub fn run() -> Result<(), Box<dyn Error>> {
 
     let mut v: Vec<_> = h.into_iter().collect();
     v.sort_unstable_by_key(|p| p.0);
-
-    v.par_iter().for_each(|(_key, (r, name))| {
-        println!(
-            "{}: {}/{}/{}",
-            std::str::from_utf8(name).unwrap(),
-            Value32::format(&r.min),
-            Value32::format(&r.average()),
-            Value32::format(&r.max)
-        );
-    });
 
     eprintln!("Num records: {}", v.len());
 
