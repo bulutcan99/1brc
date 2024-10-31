@@ -20,3 +20,4 @@ The time taken to process **1 billion rows** of data:
 - Fourth Processing Time: 99.492 seconds -> Custom float type
 - Fifth Processing Time: 90.205 seconds -> Map key to u64
 - Sixth Processing Time: 88.782 seconds -> Vec initialize with capacity
+- Seventh Processing Time: 27.383 seconds -> Rayon prallel processing
